@@ -9,6 +9,7 @@ from yahoo_fin import stock_info as si
 import pandas as pd
 import os
 import logging
+import ondemand
 
 
 class YahooDataLoader(object):
@@ -56,7 +57,7 @@ class YahooDataLoader(object):
     def _yahoo_get_data(self, start, end):
         try:
             print(
-                " downloading from yahoo Finance..."
+                "Downloading from yahoo Finance..."
                 "Please make sure you have internet connected!")
             response = si.get_data(self.ticker, start, end)
             if not response.empty:
@@ -68,7 +69,34 @@ class YahooDataLoader(object):
 
         return response
 
+class OndemandLoader(object):
+
+    def test(self):
+
+        od = ondemand.OnDemandClient(api_key='58270e88c9418a1b0b7055f1f754a636')
+
+        # or if you are using a free sandbox API
+
+        od = ondemand.OnDemandClient(api_key='58270e88c9418a1b0b7055f1f754a636', end_point='https://marketdata.websol.barchart.com/')
+
+        # get quote data for Apple and Microsoft
+        quotes = od.quote('VIX19')['results']
+
+        for q in quotes:
+            print('Symbol: %s, Last Price: %s' % (q['symbol'], q['lastPrice']))
+
+        # get 1 minutes bars for Apple
+        resp = od.history('AAPL', 'minutes', maxRecords=50, interval=1)
+
+        # generic request by API name
+        resp = od.get('getQuote', symbols='AAPL,EXC', fields='bid,ask')
+
+        # or, get the crypto
+        resp = od.crypto('^BTCUSD,^LTCUSD')
 
 if __name__ == "__main__":
-    loader = YahooDataLoader('AAPL')
-    print(loader.kline('2019-01-01', '2019-09-20'))
+    # loader = YahooDataLoader('AAPL')
+    # print(loader.kline('2019-01-01', '2019-09-20'))
+
+    o = OndemandLoader()
+    o.test()

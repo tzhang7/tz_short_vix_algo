@@ -8,6 +8,7 @@ import pandas
 import os
 import logging
 import locale
+import numpy
 
 register_matplotlib_converters()
 locale.setlocale(locale.LC_ALL, 'en_US')
@@ -20,17 +21,23 @@ class ShortVixAlgo(object):
 
     def __init__(self,
                  setup_coef=0.3,
+                 deep_contango_setup_coef=0.4,
                  enter_coef=0.95,
+                 deep_contango_coef=0.90,
                  start_trading_date="2011-01-01",
                  end_trading_date=date_utils.current_str_date(),
                  ticker='TVIX',
                  initial_capital=10000):
 
-        self.data_dir = os.path.abspath(os.path.dirname(__file__)) + '/data/'
+        self.root = os.path.abspath(os.path.dirname(__file__))
+        self.data_dir =  self.root +  '/data/'
+        self.output_dir = self.root +  '/output/'
         self.his_data_file = 'vix-funds-models-no-formulas.xlsx'
         self.cobe_future_expire_date_mapping = 'calendar.txt'
         self.setup_coef = setup_coef
+        self.deep_contango_setup_coef = deep_contango_setup_coef
         self.enter_coef = enter_coef
+        self.deep_contango_coef = deep_contango_coef
         self.start_trading_date = date_utils.str_to_datetime_fast(start_trading_date)
         self.end_trading_date = date_utils.str_to_datetime_fast(end_trading_date)
         self.ticker = ticker
@@ -89,15 +96,21 @@ class ShortVixAlgo(object):
         vix_history['enter'] = vix_history.apply(lambda row: True if row['wa_ratio'] < self.enter_coef else False,
                                                  axis=1)
         # # Assume open price is previous close price
-        # vix_history['open'] = vix_history['close'].shift(1)
+        vix_history['setup_coef'] = vix_history.apply(
+            lambda row: self.deep_contango_setup_coef if row['wa_ratio'] < self.deep_contango_coef else self.setup_coef,
+            axis=1)
 
         # Join market data from Yahoo Finance
         logging.info("Join modeling data and market data...")
         vix_history = pandas.merge(vix_history, market_data, on='date', how='left')
 
+        # Add additional performance monitoring columns
         vix_history['capital'] = 0.0
-        vix_history['win'] = 0
-        vix_history['pnl'] = 0.0
+        vix_history['daily_pnl'] = 0.0
+        vix_history['unrealized_pnl'] = 0.0
+        vix_history['realized_pnl'] = 0.0
+        vix_history['position'] = 0.0
+        vix_history['trade_logs'] = ""
         vix_history = vix_history.sort_values(by=['date'])
         vix_history['date_int'] = vix_history.apply(
             lambda row: date_utils.date_str_to_int(row['date'].strftime('%Y-%m-%d')), axis=1)
@@ -105,70 +118,133 @@ class ShortVixAlgo(object):
 
         return vix_history
 
-    def run_backtesting(self):
+    def execute_trade_strategy(self, data, save_output=True):
         """
-        Run Backtesting
+        Trade Execution Engine
+        :param data:
+        :param save_output:
         :return:
         """
-        data = self.process_data()
+        ################# Trade Execution Strategy ####################
+        # Daily rebalance if signal is enter and unrealized pnl is positive
+        # Exit signal will force close positions regardless of unrealized pnl
+        # Signal is lagged 1 day using previous closing ratios
+        # Daily PnL is using T+1 open price to trade
 
-        negative_pnl_flag = False
-        open = -1
-        # daily compounding: if no exit signal received, force close the order and rebalance
+        hold_flag = False
+        hold_index = 0
+
         for index, row in data.iterrows():
             if index == 0:
-                # initial setup
                 data.at[index, 'capital'] = self.initial_capital
-                row['capital'] = self.initial_capital
             else:
                 if data['enter'].iloc[index - 1]:
-                    # if yesterday signal is open, short position today and close it end of the day
-                    # if pnl is negative, don't rebalance.
-                    short_position = data['capital'].iloc[index - 1] * self.setup_coef / row['open']
-
-                    pnl = (row['open'] - row['close']) * short_position
-                    if pnl < 0:
-                        # still hold the position, the pnl will not be realized.
-                        data.at[index, 'capital'] = data['capital'].iloc[index - 1]
-
+                    if not hold_flag:
+                        # dynamic setup coef based on deep contango or regular contango
+                        short_position = - data['capital'].iloc[index - 1] * data['setup_coef'].iloc[index - 1] / row[
+                            'open']
                     else:
-                        data.at[index, 'capital'] = data['capital'].iloc[index - 1] + pnl
+                        short_position = data['position'].iloc[index - 1]
 
-                    if pnl < 0 and not negative_pnl_flag:
-                        open = row['open']
-                        negative_pnl_flag = True
+                    data.at[index, 'position'] = short_position
 
-                    data.at[index, 'win'] = 1 if row['open'] - row['close'] > 0 else 0
-                    data.at[index, 'pnl'] = pnl / data['capital'].iloc[index - 1]
+                    daily_pnl = (row['close'] - row['open']) * short_position
+                    data.at[index, 'daily_pnl'] = daily_pnl
+
+                    # IF today's pnl is negative and position is not hold, hold the position
+                    if daily_pnl < 0 and not hold_flag:
+                        hold_flag = True
+                        hold_index = index
+
+                    # calculate the unrealized pnl
+                    if hold_index > 0:
+                        data.at[index, 'trade_logs'] = 'hold'
+                        unrealized_pnl = data['daily_pnl'][hold_index:index + 1].sum()
+                        realized_pnl = 0
+                    else:
+                        data.at[index, 'trade_logs'] = 'daily rebalance'
+                        unrealized_pnl = 0
+                        realized_pnl = daily_pnl
+
+                    # Hold until realized_pnl >0
+                    if hold_flag and unrealized_pnl > 0:
+                        data.at[index, 'trade_logs'] = "hold rebalance"
+                        realized_pnl = unrealized_pnl
+                        unrealized_pnl = 0
+                        hold_flag = False
+                        hold_index = 0
+
+                    data.at[index, 'unrealized_pnl'] = unrealized_pnl
+                    data.at[index, 'realized_pnl'] = realized_pnl
+                    data.at[index, 'capital'] = data['capital'].iloc[index - 1] + realized_pnl
                 else:
-                    # hold 0 position when yesterday signal is exit
-                    if open >0:
-                        pnl = open - row['close']
-                        negative_pnl_flag = False
-                        data.at[index, 'capital'] = data['capital'].iloc[index - 1] + pnl
-                    else:
-                        data.at[index, 'capital'] = data['capital'].iloc[index - 1]
+                    hold_flag = False
+                    hold_index = 0
+                    data.at[index, 'trade_logs'] = 'closed by exit signal'
+                    # strategy1: close at closing price so we have daily pnl on that day
+                    # daily_pnl = (row['close']-row['open'])* data['position'].iloc[index-1]
+                    # strategy2: close at open price so daily pnl is 0
+                    daily_pnl = 0
+                    data.at[index, 'unrealized_pnl'] = 0
+                    realized_pnl = daily_pnl + data['unrealized_pnl'].iloc[index - 1]
+                    data.at[index, 'capital'] = data['capital'].iloc[index - 1] + realized_pnl
 
+        if save_output:
+            data.to_csv(self.output_dir + 'short_vix_trade_logs.csv')
+
+        return data
+
+    def run_backtesting(self, save_output=True):
+        """
+        Run backtesting
+        :param save_output:
+        :return:
+        """
+        logging.info("running backtesting...")
+        data = self.process_data()
+        data = self.execute_trade_strategy(data, save_output)
         return data
 
     def print_algo_performance(self, df):
         trade_days = len(df)
+        max_hold_days = self.find_max_holding_days(df)
         start_balance = self.initial_capital
         end_balance = list(df['capital'])[-1]
         total_investment_return = (end_balance - start_balance) / start_balance
         annualized_return = pow((1 + total_investment_return), 365 / trade_days) - 1
-        maximum_loss = min(df['pnl'])
-        maximum_gain = max(df['pnl'])
-        win_rate = len(df[df['win'] == 1]) / trade_days
+
+        max_unrealized_loss = numpy.nanmax(df['unrealized_pnl']/df['capital'])
+        min_unrealized_loss = numpy.nanmin(df['unrealized_pnl'] / df['capital'])
+        max_realized_loss = numpy.nanmax(df['realized_pnl'] / df['capital'])
+        min_realized_loss = numpy.nanmin(df['realized_pnl'] / df['capital'])
 
         print("trade days:{0}".format(trade_days))
         print("initial capital:{0}".format(locale.format_string("%d", self.initial_capital, grouping=True)))
         print("end capital:{0}".format(locale.format_string("%d", round(end_balance, 2), grouping=True)))
         print("total return:{0}".format("{0:.2%}".format(total_investment_return)))
         print("annualized return:{0}".format("{0:.2%}".format(annualized_return)))
-        print("maximun loss:{0}".format("{0:.2%}".format(maximum_loss)))
-        print("maximun gain:{0}".format("{0:.2%}".format(maximum_gain)))
-        print("win rate:{0}".format("{0:.2%}".format(win_rate)))
+        print("max unrealized loss:{0}".format("{0:.2%}".format(max_unrealized_loss)))
+        print("min unrealized loss:{0}".format("{0:.2%}".format(min_unrealized_loss)))
+        print("max realized loss:{0}".format("{0:.2%}".format(max_realized_loss)))
+        print("min realized loss:{0}".format("{0:.2%}".format(min_realized_loss)))
+
+    def find_max_holding_days(self, data):
+        """
+        Find the max holding days in the trade execution
+        :param data:
+        :return:
+        """
+
+        hold_days = 1
+        hold_days_list = []
+        for index, row in data.iterrows():
+            if index> 0 :
+                if data['trade_logs'].iloc[index-1] == 'hold' and row['trade_logs'] == 'hold':
+                    hold_days +=1
+                else:
+                    hold_days_list.append(hold_days)
+                    hold_days =1
+        return max(hold_days_list)
 
     def plot_backtesting_results(self, df, cols, fig_size=(14, 6)):
         """
