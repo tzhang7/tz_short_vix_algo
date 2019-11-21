@@ -27,11 +27,12 @@ class ShortVixAlgo(object):
                  start_trading_date="2011-01-01",
                  end_trading_date=date_utils.current_str_date(),
                  ticker='TVIX',
+                 benchmark_ticker='^GSPC',
                  initial_capital=10000):
 
         self.root = os.path.abspath(os.path.dirname(__file__))
-        self.data_dir =  self.root +  '/data/'
-        self.output_dir = self.root +  '/output/'
+        self.data_dir = self.root + '/data/'
+        self.output_dir = self.root + '/output/'
         self.his_data_file = 'vix-funds-models-no-formulas.xlsx'
         self.cobe_future_expire_date_mapping = 'calendar.txt'
         self.setup_coef = setup_coef
@@ -42,10 +43,15 @@ class ShortVixAlgo(object):
         self.end_trading_date = date_utils.str_to_datetime_fast(end_trading_date)
         self.ticker = ticker
         self.initial_capital = initial_capital
+        self.yahoo_loader = YahooDataLoader()
+        self.start_trading_date_str = date_utils.datetime_to_str(self.start_trading_date)
+        self.benchmark_ticker = benchmark_ticker
 
-    def get_mkt_data(self):
-        loader = YahooDataLoader(self.ticker)
-        return loader.kline(start=date_utils.datetime_to_str(self.start_trading_date))
+    def get_his_mkt_data(self, ticker):
+
+        result = self.yahoo_loader.kline(ticker, start=self.start_trading_date_str)
+
+        return result[['open', 'close', 'volume', 'high', 'low']].reset_index()
 
     def process_data(self):
         """
@@ -54,7 +60,7 @@ class ShortVixAlgo(object):
         """
         # load ticker market data
         logging.info('Loading Market Data from Yahoo Finance...')
-        market_data = self.get_mkt_data()[['open', 'close', 'volume', 'high', 'low']].reset_index()
+        market_data = self.get_his_mkt_data(self.ticker)
 
         logging.info('Loading Modeling Data...')
         # load historical futures and VIX data, and calc ratios
@@ -103,6 +109,7 @@ class ShortVixAlgo(object):
         # Join market data from Yahoo Finance
         logging.info("Join modeling data and market data...")
         vix_history = pandas.merge(vix_history, market_data, on='date', how='left')
+        # join
 
         # Add additional performance monitoring columns
         vix_history['capital'] = 0.0
@@ -117,6 +124,31 @@ class ShortVixAlgo(object):
         vix_history = vix_history.reset_index(drop=True)
 
         return vix_history
+
+    def get_benchmark(self, daily_rebalance=False):
+        # load s&p500 index historical data
+        benchmark = self.get_his_mkt_data(self.benchmark_ticker)
+        benchmark['capital_benchmark'] = 0.0
+        if daily_rebalance:
+            for index, row in benchmark.iterrows():
+                if index == 0:
+                    benchmark.at[index, 'capital_benchmark'] = self.initial_capital
+                else:
+                    position = benchmark['capital_benchmark'].iloc[index - 1] / row['open']
+                    daily_pnl = position * (row['close'] - row['open'])
+                    benchmark.at[index, 'capital_benchmark'] = benchmark['capital_benchmark'].iloc[
+                                                                   index - 1] + daily_pnl
+        else:
+            start_position = self.initial_capital / list(benchmark['open'])[0]
+            for index, row in benchmark.iterrows():
+                if index ==0:
+                    benchmark.at[index, 'capital_benchmark'] = self.initial_capital
+                else:
+                    daily_pnl = (row['close'] - row['open']) * start_position
+                    benchmark.at[index, 'capital_benchmark'] = benchmark['capital_benchmark'].iloc[index - 1] + daily_pnl
+
+        benchmark = benchmark.rename(columns={'open': 'open_benchmark', 'close': 'close_benchmark'})
+        return benchmark
 
     def execute_trade_strategy(self, data, save_output=True):
         """
@@ -213,7 +245,7 @@ class ShortVixAlgo(object):
         total_investment_return = (end_balance - start_balance) / start_balance
         annualized_return = pow((1 + total_investment_return), 365 / trade_days) - 1
 
-        max_unrealized_loss = numpy.nanmax(df['unrealized_pnl']/df['capital'])
+        max_unrealized_loss = numpy.nanmax(df['unrealized_pnl'] / df['capital'])
         min_unrealized_loss = numpy.nanmin(df['unrealized_pnl'] / df['capital'])
         max_realized_loss = numpy.nanmax(df['realized_pnl'] / df['capital'])
         min_realized_loss = numpy.nanmin(df['realized_pnl'] / df['capital'])
@@ -238,12 +270,12 @@ class ShortVixAlgo(object):
         hold_days = 1
         hold_days_list = []
         for index, row in data.iterrows():
-            if index> 0 :
-                if data['trade_logs'].iloc[index-1] == 'hold' and row['trade_logs'] == 'hold':
-                    hold_days +=1
+            if index > 0:
+                if data['trade_logs'].iloc[index - 1] == 'hold' and row['trade_logs'] == 'hold':
+                    hold_days += 1
                 else:
                     hold_days_list.append(hold_days)
-                    hold_days =1
+                    hold_days = 1
         return max(hold_days_list)
 
     def plot_backtesting_results(self, df, cols, fig_size=(14, 6)):
@@ -282,5 +314,6 @@ class ShortVixAlgo(object):
 
 if __name__ == "__main__":
     algo = ShortVixAlgo()
+    benchmark = algo.get_benchmark()
     data = algo.run_backtesting()
     algo.print_algo_performance(data)
