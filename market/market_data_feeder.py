@@ -68,34 +68,18 @@ class YahooDataLoader(object):
 
         return response
 
-class OndemandLoader(object):
+    def get_live_price(self, ticker, save=True):
+        try:
+            rep = si.get_live_price(ticker)
+            print(rep)
+        except Exception as ex:
+            logging.error("error in getting real time price from Yahoo Finance!")
+            logging.error(str(ex))
 
-    def test(self):
-
-        od = ondemand.OnDemandClient(api_key='58270e88c9418a1b0b7055f1f754a636')
-
-        # or if you are using a free sandbox API
-
-        od = ondemand.OnDemandClient(api_key='58270e88c9418a1b0b7055f1f754a636', end_point='https://marketdata.websol.barchart.com/')
-
-        # get quote data for Apple and Microsoft
-        quotes = od.quote('VIX19')['results']
-
-        for q in quotes:
-            print('Symbol: %s, Last Price: %s' % (q['symbol'], q['lastPrice']))
-
-        # get 1 minutes bars for Apple
-        resp = od.history('AAPL', 'minutes', maxRecords=50, interval=1)
-
-        # generic request by API name
-        resp = od.get('getQuote', symbols='AAPL,EXC', fields='bid,ask')
-
-        # or, get the crypto
-        resp = od.crypto('^BTCUSD,^LTCUSD')
 
 if __name__ == "__main__":
-    # loader = YahooDataLoader('AAPL')
-    # print(loader.kline('2019-01-01', '2019-09-20'))
+    from yahoo_finance import Share
 
-    o = OndemandLoader()
-    o.test()
+    yahoo = Share('YHOO')
+    print(yahoo.get_price())
+

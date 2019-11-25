@@ -46,6 +46,12 @@ class ShortVixAlgo(object):
         self.yahoo_loader = YahooDataLoader()
         self.start_trading_date_str = date_utils.datetime_to_str(self.start_trading_date)
         self.benchmark_ticker = benchmark_ticker
+        # load future expire date mapping
+        self.expire_date_mapping = pandas.read_csv(self.data_dir + self.cobe_future_expire_date_mapping)
+        self.expire_date_mapping = PandasUtils.convert_date_str_to_datetime(self.expire_date_mapping, 'expire date')
+        self.expire_date_mapping['expire_month'] = self.expire_date_mapping.apply(
+            lambda row: row['expire date'].strftime('%Y%m'),
+            axis=1)
 
     def get_his_mkt_data(self, ticker):
 
@@ -70,18 +76,13 @@ class ShortVixAlgo(object):
         vix_history = vix_history[
             (vix_history['date'] >= self.start_trading_date) & (vix_history['date'] <= self.end_trading_date)]
 
-        # load future expire date mapping
-        expire_date_mapping = pandas.read_csv(self.data_dir + self.cobe_future_expire_date_mapping)
-        expire_date_mapping = PandasUtils.convert_date_str_to_datetime(expire_date_mapping, 'expire date')
-        expire_date_mapping['expire_month'] = expire_date_mapping.apply(lambda row: row['expire date'].strftime('%Y%m'),
-                                                                        axis=1)
         # find the current, previous and next expire date based on the mapping
         vix_history['current_expire'] = vix_history.apply(
-            lambda row: self.find_future_expire_date(row['date'], expire_date_mapping, 0), axis=1)
+            lambda row: self.find_future_expire_date(row['date'], self.expire_date_mapping, 0), axis=1)
         vix_history['previous_expire'] = vix_history.apply(
-            lambda row: self.find_future_expire_date(row['date'], expire_date_mapping, -1), axis=1)
+            lambda row: self.find_future_expire_date(row['date'], self.expire_date_mapping, -1), axis=1)
         vix_history['next_expire'] = vix_history.apply(
-            lambda row: self.find_future_expire_date(row['date'], expire_date_mapping, 1), axis=1)
+            lambda row: self.find_future_expire_date(row['date'], self.expire_date_mapping, 1), axis=1)
 
         # find TTM and period date in order to calc weighted avg
         vix_history['TTM'] = vix_history.apply(
