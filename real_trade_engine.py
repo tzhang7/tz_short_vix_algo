@@ -5,20 +5,18 @@ __email__ = "uncczhangtao@yahoo.com"
 from market.market_data_feeder import YahooDataLoader
 from market import market_data_crawer
 from short_vix_algo import ShortVixAlgo
-from config import user_config
-from notification import email_notification
+from config.user import User
+from notification.email_notification import EmailNotification
+from utils.pandas_utils import PandasUtils
 from alpha_vantage.timeseries import TimeSeries
 import datetime
 import time
-import pandas as pd
 
 
 class RealTradeEngine(object):
 
-    def __init__(self, setup_coef=0.3,
-                 deep_contango_setup_coef=0.4,
-                 enter_coef=0.95,
-                 deep_contango_coef=0.90,
+    def __init__(self,
+                 users,
                  vix_spot_ticker='^VIX',
                  month1_ticker='VIZ19',
                  month2_ticker='VIF20',
@@ -26,45 +24,41 @@ class RealTradeEngine(object):
                  intraday_window='1800'):
         """
 
-        :param setup_coef:
-        :param deep_contango_setup_coef:
-        :param enter_coef:
-        :param deep_contango_coef:
         :param vix_spot_ticker:
         :param month1_ticker:
         :param month2_ticker:
         :param trade_ticker:
         :param intraday_window: monitor signal every 30 mins
         """
-        self.setup_coef = setup_coef
-        self.deep_contango_setup_coef = deep_contango_setup_coef
-        self.enter_coef = enter_coef
-        self.deep_contango_coef = deep_contango_coef
+        self.users = users
         self.vix_spot_ticker = vix_spot_ticker
         self.month1_ticker = month1_ticker
         self.month2_ticker = month2_ticker
         self.yahoo_data_loader = YahooDataLoader()
         self.trade_date = datetime.datetime.today()
-        # TODO check if trade date is in market hours
+        self.market_open_hour = datetime.time(8)
+        self.market_close_hour = datetime.time(15, 45, 0)
         self.trade_strategy_engine = ShortVixAlgo()
         self.trade_ticker = trade_ticker
         self.intraday_window = intraday_window
-        self.trade_log = pd.DataFrame(
-            columns={'time', 'future_mth1', 'future_mth2', 'vix_spot', 'self.wa_ratio', 'market_px', 'capital',
-                     'position', 'log'})
-
+        self.open_email = True
         self.ts = TimeSeries(key='65DFM5X22B49MNZ3', output_format='pandas')
 
-    def monitor_signal(self):
+    def get_market_data(self):
+        """
+        Get all required ticker's market data
+        :return:
+        """
+        self.vix_spot_px = self._get_intraday_data(self.vix_spot_ticker)
+        self.vix_month1_px = market_data_crawer.get_future_real_time_data(self.month1_ticker)
+        self.vix_month2_px = market_data_crawer.get_future_real_time_data(self.month2_ticker)
+        self.trade_market_px = self._get_intraday_data(self.trade_ticker)
+
+    def calc_signal(self):
         """
         Calc Enter and Exit Signal Based on T+0 data
         :return: sginal, position_coef
         """
-
-        self.vix_spot_px = self._get_intraday_data(self.vix_spot_ticker)
-        self.vix_month1_px = market_data_crawer.get_future_real_time_data(self.month1_ticker)
-        self.vix_month2_px = market_data_crawer.get_future_real_time_data(self.month2_ticker)
-
         # calc ratio1 and ratio2
         ratio1 = self.vix_spot_px / self.vix_month1_px
         ratio2 = self.vix_month1_px / self.vix_month2_px
@@ -84,15 +78,9 @@ class RealTradeEngine(object):
         period = current_expire - previous_expire if current_expire >= self.trade_date else next_expire - current_expire
 
         # calc weighted average
-        self.wa_ratio = ttm / period * ratio1 + (1 - ttm / period) * ratio2
+        wa_ratio = ttm / period * ratio1 + (1 - ttm / period) * ratio2
 
-        # calc signal
-        if self.wa_ratio < self.deep_contango_coef:
-            return True, self.deep_contango_setup_coef,
-        elif self.wa_ratio < self.enter_coef:
-            return True, self.setup_coef
-        else:
-            return False, 0
+        return wa_ratio
 
     def _get_intraday_data(self, ticker):
 
@@ -106,21 +94,58 @@ class RealTradeEngine(object):
         """
         # calc enter signal
         while True:
-            signal, position_coef = self.monitor_signal()
-            market_px = self._get_intraday_data(self.trade_ticker)
             trade_time = datetime.datetime.now()
-            # self.trade_log = self.trade_log.append([])
 
-            for user_name, user_setting in user_config.users.iteriterms():
-                if signal:
-                    # calc the position
-                    position = -user_setting['capital'] / market_px
-                    subject = "Short VIX Open signal"
-                    body = ''
+            if trade_time.time() >= self.market_open_hour and trade_time.time() <= self.market_close_hour:
+                # Only monitoring the signal during market hours 
+                self.get_market_data()
+                wa_ratio = self.calc_signal()
 
+                for user in self.users:
+                    capital = user.capital
+                    recipient_email = user.email
+
+                    if wa_ratio < user.deep_contango_coef:
+                        position_coef = user.deep_contango_setup_coef
+                    elif wa_ratio < user.enter_coef:
+                        position_coef = user.setup_coef
+                    else:
+                        position_coef = 0
+
+                    signal = position_coef != 0
+
+                    if signal:
+                        # calc the position
+                        position = -capital * position_coef / self.trade_market_px
+                        log = 'Open'
+                        subject = "Short VIX Open signal"
+                        if self.open_email:
+                            sent_email = True
+                        else:
+                            sent_email = False
+                            self.open_email = False
+                    else:
+                        position = 0
+                        subject = "Short VIX Open signal"
+                        log = 'Close'
+                        sent_email = True
+
+                    user.trade_log_tbl = PandasUtils.addRow(user.trade_log_tbl,
+                                                            [trade_time, user.name, self.vix_month1_px,
+                                                             self.vix_month2_px,
+                                                             self.vix_spot_px, wa_ratio, self.trade_market_px, capital,
+                                                             position, log, sent_email])
+                    if sent_email:
+                        body = EmailNotification.covert_df_to_html(user.trade_log_tbl)
+                        EmailNotification.send_email(recipient_email, subject, body)
+
+            print("Sleeping for 30 mins... Zzzzz")
             time.sleep(self.intraday_window)
 
 
 if __name__ == '__main__':
-    runner = RealTradeEngine()
+    user1 = User('tao', 'tzshortvix@gmail.com', capital=2000)
+    user2 = User('ruicheng', 'tzshortvix@gmail.com', capital=2000)
+
+    runner = RealTradeEngine([user1, user2])
     runner.start_trading()

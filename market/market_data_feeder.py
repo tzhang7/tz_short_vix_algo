@@ -76,10 +76,3 @@ class YahooDataLoader(object):
             logging.error("error in getting real time price from Yahoo Finance!")
             logging.error(str(ex))
 
-
-if __name__ == "__main__":
-    from yahoo_finance import Share
-
-    yahoo = Share('YHOO')
-    print(yahoo.get_price())
-
