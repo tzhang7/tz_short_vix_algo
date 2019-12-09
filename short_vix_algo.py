@@ -11,7 +11,7 @@ import locale
 import numpy
 
 register_matplotlib_converters()
-locale.setlocale(locale.LC_ALL, 'en_US')
+#locale.setlocale(locale.LC_ALL, 'en_US')
 
 
 class ShortVixAlgo(object):
@@ -252,8 +252,9 @@ class ShortVixAlgo(object):
         min_realized_loss = numpy.nanmin(df['realized_pnl'] / df['capital'])
 
         print("trade days:{0}".format(trade_days))
-        print("initial capital:{0}".format(locale.format_string("%d", self.initial_capital, grouping=True)))
-        print("end capital:{0}".format(locale.format_string("%d", round(end_balance, 2), grouping=True)))
+        print("initial capital:{0}".format(self.initial_capital))
+        print("end capital:{0}".format(round(end_balance, 2)))
+        print("max hold days{0}".format(max_hold_days))
         print("total return:{0}".format("{0:.2%}".format(total_investment_return)))
         print("annualized return:{0}".format("{0:.2%}".format(annualized_return)))
         print("max unrealized loss:{0}".format("{0:.2%}".format(max_unrealized_loss)))

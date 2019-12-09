@@ -99,6 +99,11 @@ class RealTradeEngine(object):
         for user in self.users:
             if not user.trade_log_tbl.empty:
                 user.trade_log_tbl.to_csv(env.OUTPUT_DIR + '/{0}_trade_log_{1}.csv'.format(user.name, datetime.date.today()))
+
+                body = EmailNotification.covert_df_to_html(user.trade_log_tbl)
+                subject = '***Short VIX Signal EOD Summary***'
+                EmailNotification.send_email(user.email, subject, body)
+
                 user.trade_log_tbl = PandasUtils.df_empty(user.trade_log_schema)
                 logger.info("{0}'s logs saved.".format(user.name))
 
@@ -152,7 +157,7 @@ class RealTradeEngine(object):
                                                              self.vix_month2_px,
                                                              self.vix_spot_px, round(wa_ratio,4), self.trade_market_px, capital,
                                                              position, log, sent_email])
-                    print("-----------------------------------------------------------------------------------")
+                    logger.info("-----------------------------------------------------------------------------------")
                     if user.only_show_signal:
                         signal_tbl = user.trade_log_tbl[
                             ['time', 'user', 'vix_mth1', 'vix_mth2', 'vix_spot', 'wa_ratio', 'market_px', 'log']]
@@ -163,9 +168,9 @@ class RealTradeEngine(object):
                             body = EmailNotification.covert_df_to_html(signal_tbl)
                             EmailNotification.send_email(recipient_email, subject, body)
                     else:
-                        print(user.trade_log_tbl)
+                        logger.info(user.trade_log_tbl)
             else:
-                logger.info("Market Closed @{0}, please wait ...".format(trade_time))
+                logger.info("Market closed, please wait ...")
                 # save user logs and clear the logs
                 self.save_user_logs_and_clear()
 
