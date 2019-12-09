@@ -110,8 +110,6 @@ class RealTradeEngine(object):
         # calc enter signal
         while True:
             trade_time = datetime.datetime.now()
-            # save user logs and clear the logs
-            self.save_user_logs_and_clear()
 
             if self.market_open_hour <= trade_time.time() <= self.market_close_hour:
                 # Only monitor the signal during market hours
@@ -168,8 +166,10 @@ class RealTradeEngine(object):
                         print(user.trade_log_tbl)
             else:
                 logger.info("Market Closed @{0}, please wait ...".format(trade_time))
+                # save user logs and clear the logs
+                self.save_user_logs_and_clear()
 
-            logger.info("Sleeping...")
+            logger.info("Sleeping for {0} seconds...".format(self.intraday_window))
             time.sleep(self.intraday_window)
 
 
