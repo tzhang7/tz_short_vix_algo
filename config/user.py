@@ -10,11 +10,12 @@ class User(object):
     def __init__(self,
                  name,
                  email,
-                 capital,
+                 capital=30000,
                  setup_coef=0.33,
                  deep_contango_setup_coef=0.4,
                  enter_coef=0.95,
                  deep_contango_coef=0.90,
+                 print_log=True
                  ):
 
         self.name = name
@@ -26,8 +27,8 @@ class User(object):
         self.deep_contango_coef = deep_contango_coef
         self.trade_log_schema = {'time': 'datetime64[ns]',
                                  'user': str,
-                                 'future_mth1': float,
-                                 'future_mth2': float,
+                                 'vix_mth1': float,
+                                 'vix_mth2': float,
                                  'vix_spot': float,
                                  'wa_ratio': float,
                                  'market_px': float,
@@ -35,5 +36,7 @@ class User(object):
                                  'position': float,
                                  'log': str,
                                  'email_sent': bool}
-
         self.trade_log_tbl = PandasUtils.df_empty(self.trade_log_schema)
+        self.open_email =True
+        self.only_show_signal = True
+        self.print_log = print_log

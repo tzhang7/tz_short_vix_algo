@@ -39,7 +39,7 @@ class EmailNotification(object):
             server_ssl.sendmail(FROM, TO, msg.as_string())
             # server_ssl.quit()
             server_ssl.close()
-            print('successfully sent the mail')
+            print('successfully sent the mail to {0}'.format(recipient))
         except Exception as ex:
             # TODO if failed try another account and resend
             print("failed to send mail")

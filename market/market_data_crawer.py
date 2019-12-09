@@ -10,7 +10,7 @@ import http.client
 from bs4 import BeautifulSoup
 
 
-def get_future_real_time_data(ticker):
+def get_barchart_real_time_data(ticker):
     url = 'https://www.barchart.com/futures/quotes/{}'.format(ticker)
     header = {
         'authority': 'www.barchart.com',
@@ -58,13 +58,17 @@ def get_future_real_time_data(ticker):
     for result in results:
         data_dic = result.attrs['data-ng-init']
 
-    data_dic = data_dic.split("(")[1] + '"}'
+    temp = data_dic.split("(")[1]
+    if "}" in temp and ")" in temp:
+        data_dic = temp.replace(")",'').replace('true', 'True')
+    else:
+        data_dic = temp + '"}'
     data_dic = eval(data_dic)
     last_price = float(data_dic['lastPrice'][:-1]) if 's' in data_dic['lastPrice'] else float(data_dic['lastPrice'])
     return last_price
 
 
 if __name__ == '__main__':
-    #VIZ19, VIF20
-    px = get_future_real_time_data('VIF20')
+    #VIZ19, VIF20, TVIX, VIY00
+    px = get_barchart_real_time_data('VIY00')
     print(px)
