@@ -106,6 +106,7 @@ class RealTradeEngine(object):
 
                 user.trade_log_tbl = PandasUtils.df_empty(user.trade_log_schema)
                 logger.info("{0}'s logs saved.".format(user.name))
+                user.open_email = True
 
     def start_trading(self):
         """
@@ -151,6 +152,7 @@ class RealTradeEngine(object):
                         subject = "Short VIX Close signal"
                         log = 'Close'
                         sent_email = True  # close signal always send email with high priority
+                        user.open_email = True
 
                     user.trade_log_tbl = PandasUtils.addRow(user.trade_log_tbl,
                                                             [trade_time.strftime("%d.%b %Y %H:%M:%S"), user.name, self.vix_month1_px,
