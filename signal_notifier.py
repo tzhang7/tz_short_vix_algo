@@ -46,6 +46,7 @@ class RealTradeEngine(object):
         self.trade_strategy_engine = ShortVixAlgo()
         self.trade_ticker = trade_ticker
         self.intraday_window = intraday_window
+        self.schedule = [10, 11, 12, 13, 14, 15, 16]
         # self.ts = TimeSeries(key='65DFM5X22B49MNZ3', output_format='pandas')
 
     def get_market_data(self):

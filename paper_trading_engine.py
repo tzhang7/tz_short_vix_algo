@@ -164,13 +164,14 @@ class IBTradeEngine(object):
         trade_dates = ['2019-12-10', '2019-12-11']
         dfs = []
         for d in trade_dates:
-            df = pd.read_csv()
+            df = pd.read_csv(env.OUTPUT_DIR + '/{0}_trade_log_{1}.csv'.format(user.name, d))
+            dfs.append(df)
 
     def backtesting(self):
         user = self.user
         t = 0
 
-        back_test_data = self.get_backtesting_data()
+        bt_data = self.get_backtesting_data()
         wa_ratio = self.calc_signal()
         # Calc position coef
         if wa_ratio < user.deep_contango_coef:
