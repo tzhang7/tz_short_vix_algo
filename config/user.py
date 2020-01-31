@@ -40,3 +40,18 @@ class User(object):
         self.open_email =True
         self.only_show_signal = True
         self.print_log = print_log
+
+        self.trade_book_schema = {'time': 'datetime64[ns]',
+                                 'user': str,
+                                 'vix_mth1': float,
+                                 'vix_mth2': float,
+                                 'vix_spot': float,
+                                 'wa_ratio': float,
+                                 'market_px': float,
+                                 'capital': float,
+                                 'position': float,
+                                 'action': str,  # Open, Hold, Rebalance, Close
+                                 'unreal_pnl': float,
+                                 'real_pnl': float}
+
+        self.trade_book_tbl = PandasUtils.df_empty(self.trade_book_schema)
