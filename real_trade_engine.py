@@ -23,8 +23,8 @@ class RealTradeEngine(object):
     def __init__(self,
                  users,
                  vix_spot_ticker='VIY00',
-                 month1_ticker='VIZ19',
-                 month2_ticker='VIF20',
+                 month1_ticker='VIG20',
+                 month2_ticker='VIH20',
                  trade_ticker='TVIX',
                  intraday_window=300):
         """
@@ -42,7 +42,7 @@ class RealTradeEngine(object):
         self.yahoo_data_loader = YahooDataLoader()
         self.trade_date = datetime.datetime.today()
         self.market_open_hour = datetime.time(8)
-        self.market_close_hour = datetime.time(15, 45, 0)
+        self.market_close_hour = datetime.time(16, 00, 0)
         self.trade_strategy_engine = ShortVixAlgo()
         self.trade_ticker = trade_ticker
         self.intraday_window = intraday_window
@@ -60,8 +60,7 @@ class RealTradeEngine(object):
         self.vix_month2_px = market_data_crawer.get_barchart_real_time_data(self.month2_ticker)
         self.trade_market_px = market_data_crawer.get_barchart_real_time_data(self.trade_ticker)
         end = datetime.datetime.now()
-        logger.info("Market data loaded, takes {0} seconds".format( end - start))
-
+        logger.info("Market data loaded, takes {0} seconds".format(end - start))
 
     def calc_signal(self):
         """
@@ -98,7 +97,8 @@ class RealTradeEngine(object):
         """
         for user in self.users:
             if not user.trade_log_tbl.empty:
-                user.trade_log_tbl.to_csv(env.OUTPUT_DIR + '/{0}_trade_log_{1}.csv'.format(user.name, datetime.date.today()))
+                user.trade_log_tbl.to_csv(
+                    env.OUTPUT_DIR + '/{0}_trade_log_{1}.csv'.format(user.name, datetime.date.today()))
 
                 body = EmailNotification.covert_df_to_html(user.trade_log_tbl)
                 subject = '***Short VIX Signal EOD Summary***'
@@ -155,14 +155,20 @@ class RealTradeEngine(object):
                         user.open_email = True
 
                     user.trade_log_tbl = PandasUtils.addRow(user.trade_log_tbl,
-                                                            [trade_time.strftime("%d.%b %Y %H:%M:%S"), user.name, self.vix_month1_px,
+                                                            [trade_time.strftime("%d.%b %Y %H:%M:%S"), user.name,
+                                                             self.vix_month1_px,
                                                              self.vix_month2_px,
-                                                             self.vix_spot_px, round(wa_ratio,4), self.trade_market_px, capital,
+                                                             self.vix_spot_px, round(wa_ratio, 4), self.trade_market_px,
+                                                             capital,
                                                              position, log, sent_email])
                     logger.info("-----------------------------------------------------------------------------------")
                     if user.only_show_signal:
                         signal_tbl = user.trade_log_tbl[
                             ['time', 'user', 'vix_mth1', 'vix_mth2', 'vix_spot', 'wa_ratio', 'market_px', 'log']]
+                        signal_tbl['1/3 exit ratio'] = signal_tbl.apply(
+                            lambda row: round((1 + (1 / (3 * 1 / 3) - 2 / 3)) , 2), axis=1)
+                        signal_tbl['1/4 exit ratio'] = signal_tbl.apply(
+                            lambda row: round((1 + (1 / (3 * 1 / 4) - 2 / 3)) ,2), axis=1)
                         if user.print_log:
                             print(signal_tbl)
 
