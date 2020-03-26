@@ -23,10 +23,10 @@ class RealTradeEngine(object):
     def __init__(self,
                  users,
                  vix_spot_ticker='VIY00',
-                 month1_ticker='VIG20',
-                 month2_ticker='VIH20',
+                 month1_ticker='VIJ20',
+                 month2_ticker='VIK20',
                  trade_ticker='TVIX',
-                 intraday_window=300):
+                 intraday_window=60):
         """
 
         :param vix_spot_ticker:
