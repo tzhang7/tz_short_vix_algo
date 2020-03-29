@@ -31,7 +31,7 @@ class WidgetSignal(WidgetBase):
         self.flag = True
         self.db = VixDb()
         self.market_open_hour = datetime.time(8)
-        self.market_close_hour = datetime.time(23, 00, 0)
+        self.market_close_hour = datetime.time(16, 00, 0)
 
         ## UI Component
         self.sl = WidgetLongSignal()
@@ -68,36 +68,32 @@ class WidgetSignal(WidgetBase):
                 signal_tbl = trade_engine.start_trading(trade_time)
                 with self.out:
                     self.out.clear_output()
+                    self.plot_signal(signal_tbl)
                     print(signal_tbl)
                 time.sleep(self.sl.monitor_interval.value)
 
     def plot_signal(self, signal_tbl):
 
-        migtime = [16.6, 16.5, 16.9, 17.1, 17.2, 18.1, 18.2, 18.4, 19.4, 19.3, 20.4, 20.3, 22, 21.7, 22]
-        delay = [108, 98, 92, 83, 87, 77, 85, 48, 31, 58, 35, 43, 36, 31, 19]
+        if len(signal_tbl)>5:
+            signal_tbl = signal_tbl.tail(6)
+        time = signal_tbl['time'].tolist()
 
-        fig, ax = plt.subplots()
+        signal = signal_tbl['wa_ratio'].tolist()
+        fig_size = (14, 6)
+        plt.figure(figsize=fig_size)
 
-        plt.xlabel('migration speed (MB/s)')
-        plt.ylabel('migration time (s); request delay (ms)')
+        red_line = [1.17 for i in range(len(time))]
+        yellow_line = [1.20 for i in range(len(time))]
+        green_line = [1.25 for i in range(len(time))]
 
-        """set interval for y label"""
-        yticks = range(10, 110, 10)
-        ax.set_yticks(yticks)
-
-        """set min and max value for axes"""
-        ax.set_ylim([10, 110])
-        ax.set_xlim([58, 42])
-
-        x = [57, 56, 55, 54, 53, 52, 51, 50, 49, 48, 47, 46, 45, 44, 43]
-        plt.plot(x, migtime, "x-", label="migration time")
-        plt.plot(x, delay, "+-", label="request delay")
-
-        """open the grid"""
-        plt.grid(True)
-
-        plt.legend(bbox_to_anchor=(1.0, 1), loc=1, borderaxespad=0.)
-
+        # plt.plot(time, red_line, "-", label="red", color="red")
+        # plt.plot(time, yellow_line, "-", label="red", color="yellow")
+        # plt.plot(time, green_line, "-", label="red", color="green")
+        plt.plot(time, signal, "*-", label="signal", color="blue")
+        plt.legend('signal')
+        plt.xlabel('time')
+        plt.ylabel('signal')
+        #plt.grid(True)
         plt.show()
 
     def save_ticker(self, bt):

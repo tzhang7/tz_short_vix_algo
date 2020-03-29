@@ -15,6 +15,7 @@ import sqlite3
 import logging
 
 logging.getLogger("requests").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 pd.set_option('display.max_columns', None)
 pd.set_option('expand_frame_repr', False)
@@ -176,8 +177,9 @@ class RealTradeEngine(object):
                 signal_tbl = user.trade_log_tbl[
                     ['time', 'user', 'vix_mth1', 'vix_mth2', 'vix_spot', 'wa_ratio', 'market_px', 'log']]
                 if strategy =='long':
-                    signal_tbl['red'] = 1.17
-                    signal_tbl['yellow'] = 1.2
+                    signal_tbl['red'] = '[0,1.17]'
+                    signal_tbl['yellow'] = '[1.17,1.20]'
+                    signal_tbl['green'] = '[1.20,inf]'
                 # signal_tbl['1/3 exit ratio'] = signal_tbl.apply(
                 #     lambda row: round((1 + (1 / (3 * 1 / 3) - 2 / 3)) , 2), axis=1)
                 # signal_tbl['1/4 exit ratio'] = signal_tbl.apply(
