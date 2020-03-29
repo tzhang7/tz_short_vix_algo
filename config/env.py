@@ -6,6 +6,7 @@ import os
 import logging
 import tempfile
 import datetime
+import collections
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(str(__file__))), os.path.pardir))
 DATA_DIR = os.path.join(ROOT_DIR, 'data')
@@ -43,9 +44,16 @@ def get_logger():
 
 logger = get_logger()
 
+ticker_config_schema=collections.OrderedDict()
+ticker_config_schema['month1_ticker'] ='TEXT'
+ticker_config_schema['month2_ticker'] ='TEXT'
+ticker_config_schema['interval'] ='REAL'
 
 class DataConfig(object):
 
     @classmethod
     def look_up_data_path(cls, symbol):
         return os.path.join(ROOT_DIR, 'data/{0}.csv'.format(str.upper(symbol)))
+
+
+
