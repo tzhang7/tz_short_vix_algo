@@ -89,12 +89,14 @@ class WidgetSignal(WidgetBase):
             self.sl.upro_px.value * self.sl.upro_qty.value + self.sl.tvix_px.value * self.sl.tvix_qty.value, 2)
         current_capital = round(self.sl.upro_qty.value * upro_px + self.sl.tvix_qty.value * tvix_px, 2)
         pnl = round(current_capital - capital_original, 2)
-        sumamry = " Current Ratio:{0}, In Position Capital:{1}, Current Capital:{2}, Pnl:{3}".format(wa_ratio,
+        sumamry = "Current Ratio:{0}, In Position Capital:{1}, Current Capital:{2}, Pnl:{3}".format(wa_ratio,
                                                                                                      capital_original,
                                                                                                      current_capital,
                                                                                                      pnl)
         print(sumamry)
         time = signal_tbl['time'].tolist()
+
+        time = [x.split(" ")[-1] for x in time]
         signal = signal_tbl['wa_ratio'].tolist()
         signal = [float(x) for x in signal]
         fig_size = (14, 6)
@@ -112,14 +114,14 @@ class WidgetSignal(WidgetBase):
         plt.plot(time, yellow_line, "-", label="red", color="yellow")
         plt.plot(time, green_line, "-", label="red", color="green")
         plt.plot(time, signal, "ko-", label="signal", color="blue")
-        plt.legend(['red','yellow','green','blue'])
+        #plt.legend(['red','yellow','green','signal'])
         plt.xlabel('time')
         plt.ylabel('signal')
 
         plt.subplot(1, 2, 2)
         plt.plot(time, original_capital_line, "-", label="red", color="red")
         plt.plot(time, current_capital_line, "ko-", label="red", color="blue")
-        plt.legend(['original capital', 'current capital'])
+        #plt.legend(['original capital', 'current capital'])
         plt.xlabel('time')
         plt.ylabel('Capital')
 
