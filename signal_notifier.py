@@ -29,6 +29,7 @@ class RealTradeEngine(object):
                  month1_ticker='VIJ20',
                  month2_ticker='VIK20',
                  trade_ticker='TVIX',
+                 hedge_ticker='UPRO',
                  market_open_hour = datetime.time(8),
                  market_close_hour = datetime.time(16, 00, 0),
                  intraday_window=60):
@@ -49,6 +50,7 @@ class RealTradeEngine(object):
         self.market_close_hour = market_close_hour
         self.trade_strategy_engine = ShortVixAlgo()
         self.trade_ticker = trade_ticker
+        self.hedge_ticker = hedge_ticker
         self.intraday_window = intraday_window
         self.schedule = [10, 11, 12, 13, 14, 15, 16]
         # self.ts = TimeSeries(key='65DFM5X22B49MNZ3', output_format='pandas')
@@ -64,6 +66,7 @@ class RealTradeEngine(object):
         self.vix_month1_px = market_data_crawer.get_barchart_real_time_data(self.month1_ticker)
         self.vix_month2_px = market_data_crawer.get_barchart_real_time_data(self.month2_ticker)
         self.trade_market_px = market_data_crawer.get_barchart_real_time_data(self.trade_ticker)
+        self.hedge_market_px = market_data_crawer.get_barchart_real_time_data(self.hedge_ticker)
         end = datetime.datetime.now()
         #print("Market data loaded, takes {0} seconds".format(end - start))
 
@@ -120,7 +123,7 @@ class RealTradeEngine(object):
         :return:
         """
         # calc enter signal
-        self.get_market_data()
+        #self.get_market_data()
         wa_ratio = self.calc_signal()
         # insert
         try:
@@ -169,13 +172,14 @@ class RealTradeEngine(object):
                                                      self.vix_month1_px,
                                                      self.vix_month2_px,
                                                      self.vix_spot_px, round(wa_ratio, 4), self.trade_market_px,
+                                                     self.hedge_market_px,
                                                      capital,
                                                      position, log, sent_email])
 
             #print("-----------------------------------------------------------------------------------")
             if user.only_show_signal:
                 signal_tbl = user.trade_log_tbl[
-                    ['time', 'user', 'vix_mth1', 'vix_mth2', 'vix_spot', 'wa_ratio', 'market_px', 'log']]
+                    ['time', 'user', 'vix_mth1', 'vix_mth2', 'vix_spot', 'wa_ratio', 'market_px','hedge_px', 'log']]
                 if strategy =='long':
                     signal_tbl['red'] = '[0,1.17]'
                     signal_tbl['yellow'] = '[1.17,1.20]'

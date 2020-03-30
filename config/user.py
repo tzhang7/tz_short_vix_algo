@@ -32,6 +32,7 @@ class User(object):
                                  'vix_spot': float,
                                  'wa_ratio': float,
                                  'market_px': float,
+                                 'hedge_px': float,
                                  'capital': float,
                                  'position': float,
                                  'log': str,

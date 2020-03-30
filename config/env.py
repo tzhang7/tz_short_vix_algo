@@ -48,6 +48,10 @@ ticker_config_schema=collections.OrderedDict()
 ticker_config_schema['month1_ticker'] ='TEXT'
 ticker_config_schema['month2_ticker'] ='TEXT'
 ticker_config_schema['interval'] ='REAL'
+ticker_config_schema['tvix_px'] ='REAL'
+ticker_config_schema['upro_px'] ='REAL'
+ticker_config_schema['tvix_qty'] ='REAL'
+ticker_config_schema['upro_qty'] ='REAL'
 
 class DataConfig(object):
 
